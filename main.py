@@ -204,28 +204,6 @@ class ChessGame:
         pygame.draw.rect(self.screen, self.theme["hud_bg"], self.board_rect.inflate(8, 8), border_radius=4)
 
     def draw_board(self):
-        # Draw 3D side/thickness of the board
-        bottom_left = self.get_perspective_pos(0, 7)
-        bottom_right = self.get_perspective_pos(7, 7)
-        thickness = 25
-        
-        # Bottom edge polygon
-        pygame.draw.polygon(self.screen, self.theme["board_border"], [
-            (bottom_left[0] - 60, bottom_left[1]),
-            (bottom_right[0] + 60, bottom_right[1]),
-            (bottom_right[0] + 60, bottom_right[1] + thickness),
-            (bottom_left[0] - 60, bottom_left[1] + thickness)
-        ])
-
-        # Draw board background (the whole trapezoid)
-        top_left = self.get_perspective_pos(0, 0)
-        top_right = self.get_perspective_pos(7, 0)
-        pygame.draw.polygon(self.screen, self.theme["board_border"], [
-            (top_left[0] - 15, top_left[1] - 15),
-            (top_right[0] + 15, top_right[1] - 15),
-            (bottom_right[0] + 60, bottom_right[1] + 2),
-            (bottom_left[0] - 60, bottom_left[1] + 2)
-        ])
 
         for row in range(BOARD_SIZE):
             for col in range(BOARD_SIZE):
@@ -245,13 +223,23 @@ class ChessGame:
                 pygame.draw.polygon(self.screen, color, [p1, p2, p3, p4])
                 
                 # Draw subtle grid lines
-                pygame.draw.aalines(self.screen, self.theme["board_border"], True, [p1, p2, p3, p4])
+                #pygame.draw.aalines(self.screen, self.theme["board_border"], True, [p1, p2, p3, p4])
 
         for move in self.valid_moves:
             col = chess.square_file(move.to_square)
             row = 7 - chess.square_rank(move.to_square)
-            center = self.get_perspective_pos(col, row)
-            pygame.draw.circle(self.screen, self.theme["move_dot"], (int(center[0]), int(center[1])), int(SQUARE_SIZE // 8 * self.get_perspective_scale(row)))
+            #center = self.get_perspective_pos(col, row)
+            #pygame.draw.circle(self.screen, self.theme["move_dot"], (int(center[0]), int(center[1])), int(SQUARE_SIZE // 8 * self.get_perspective_scale(row)))
+            color = self.theme["highlight"]
+
+            # Get 4 corners of the square in perspective
+            p1 = self.get_perspective_pos(col - 0.5, row - 0.5)
+            p2 = self.get_perspective_pos(col + 0.5, row - 0.5)
+            p3 = self.get_perspective_pos(col + 0.5, row + 0.5)
+            p4 = self.get_perspective_pos(col - 0.5, row + 0.5)
+
+            # Draw square polygon
+            pygame.draw.polygon(self.screen, color, [p1, p2, p3, p4])
 
     def draw_pieces(self):
         # Draw in order from top rows to bottom rows for proper 3D stacking
