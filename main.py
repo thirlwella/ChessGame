@@ -24,7 +24,12 @@ BOARD_CENTER_X = WIDTH // 2
 BOARD_CENTER_Y = 340
 PIECE_SETS = [
     {
-        "name": "Classic",
+        "name": "BW Classic",
+        "path": "assets/classic_bw",
+        "scale": 0.470,
+    },
+    {
+        "name": "Blue Classic",
         "path": "assets/classic",
         "scale": 0.470,
     },
@@ -32,13 +37,25 @@ PIECE_SETS = [
         "name": "Lewis",
         "path": "assets/lewis",
         "scale": 0.80,
-    },
+    }
 ]
 
 # Stockfish path
 STOCKFISH_PATH = "stockfish/stockfish-windows-x86-64-avx2.exe"
 
 THEMES = [
+    {
+        "name": "Default",
+        "background_top": (82, 82, 82),
+        "background_bottom": (0, 0, 0),
+        "board_light": (228, 238, 245),
+        "board_dark": (127,127,127),
+        "board_border": (65, 82, 96),
+        "highlight": (204, 204, 204),
+        "hud_bg": (108, 108, 108),
+        "hud_border": (97, 97, 97),
+        "hud_text": (18, 31, 54),
+    },
     {
         "name": "Cyrus Blue",
         "background_top": (148, 171, 200),
@@ -47,7 +64,6 @@ THEMES = [
         "board_dark": (54, 105, 196),
         "board_border": (19, 31, 72),
         "highlight": (167, 194, 255),
-        "move_dot": (18, 34, 79),
         "hud_bg": (210, 220, 235),
         "hud_border": (33, 52, 97),
         "hud_text": (19, 26, 54),
@@ -60,7 +76,6 @@ THEMES = [
         "board_dark": (57, 126, 99),
         "board_border": (24, 59, 46),
         "highlight": (173, 224, 195),
-        "move_dot": (18, 66, 48),
         "hud_bg": (208, 224, 214),
         "hud_border": (35, 82, 63),
         "hud_text": (18, 45, 34),
@@ -73,7 +88,6 @@ THEMES = [
         "board_dark": (176, 125, 52),
         "board_border": (89, 55, 17),
         "highlight": (243, 210, 128),
-        "move_dot": (99, 59, 19),
         "hud_bg": (229, 217, 190),
         "hud_border": (112, 75, 28),
         "hud_text": (67, 43, 13),
@@ -108,6 +122,11 @@ class ChessGame:
         self.piece_sprites = {}
         self.setup_engine()
         self.generate_piece_sprites()
+
+        # Animation state
+        self.moving_piece = None  # (piece, from_sq, to_sq)
+        self.animation_start = 0
+        self.animation_duration = 1  # seconds
 
         # UI Buttons (using engine.py)
         self.setup_buttons()
@@ -299,7 +318,12 @@ class ChessGame:
                 color = self.theme["board_light"] if (row + col) % 2 == 0 else self.theme["board_dark"]
 
                 if self.selected_square == square:
-                    color = self.theme["highlight"]
+                    if (row + col) % 2 == 0:
+                        color = self.theme["highlight"]
+                    else:
+                        # Darken highlight for dark squares
+                        h = self.theme["highlight"]
+                        color = (max(0, h[0] - 20), max(0, h[1] - 20), max(0, h[2] - 20))
 
                 # Get 4 corners of the square in perspective
                 p1 = self.get_perspective_pos(col - 0.5, row - 0.5)
@@ -320,7 +344,11 @@ class ChessGame:
                 col = 7 - chess.square_file(move.to_square)
                 row = chess.square_rank(move.to_square)
 
-            color = self.theme["highlight"]
+            if (row + col) % 2 == 0:
+                color = self.theme["highlight"]
+            else:
+                h = self.theme["highlight"]
+                color = (max(0, h[0] - 20), max(0, h[1] - 20), max(0, h[2] - 20))
 
             # Get 4 corners of the square in perspective
             p1 = self.get_perspective_pos(col - 0.5, row - 0.5)
@@ -345,26 +373,64 @@ class ChessGame:
                 else:
                     square = chess.square(7 - col, row)
 
+                if self.moving_piece and square == self.moving_piece[2]:
+                    # Don't draw the piece that is currently animating into this square
+                    # but if there's a different piece here already (not the one moving)
+                    # it means we are in the middle of animation but the board is updated
+                    pass
+
                 piece = self.board.piece_at(square)
                 if not piece:
+                    continue
+                
+                # Skip the piece that is currently being animated (it will be drawn separately)
+                if self.moving_piece and square == self.moving_piece[2] and piece == self.moving_piece[0]:
                     continue
 
                 pos = self.get_perspective_pos(col, row)
                 scale = self.get_perspective_scale(row)
+                self.draw_piece(piece, pos, scale, row)
 
-                sprite = self.piece_sprites[(piece.color, piece.piece_type)]
-                
-                # Scale sprite based on perspective and global scale factor
-                orig_size = sprite.get_size()
-                final_scale = scale * self.piece_set["scale"]
-                new_size = (int(orig_size[0] * final_scale), int(orig_size[1] * final_scale))
-                scaled_sprite = pygame.transform.smoothscale(sprite, new_size)
-                
-                # Adjust position so the base of the piece sits on the square
-                rect = scaled_sprite.get_rect(midbottom=(pos[0], pos[1] + 40 * final_scale))
-                
-                # Draw piece
-                self.screen.blit(scaled_sprite, rect)
+        # Draw animating piece last (so it's on top)
+        if self.moving_piece:
+            piece, from_sq, to_sq = self.moving_piece
+            elapsed = (pygame.time.get_ticks() / 1000) - self.animation_start
+            t = min(1.0, elapsed / self.animation_duration)
+            
+            # Get start/end visual coordinates
+            if self.perspective == chess.WHITE:
+                from_col, from_row = chess.square_file(from_sq), 7 - chess.square_rank(from_sq)
+                to_col, to_row = chess.square_file(to_sq), 7 - chess.square_rank(to_sq)
+            else:
+                from_col, from_row = 7 - chess.square_file(from_sq), chess.square_rank(from_sq)
+                to_col, to_row = 7 - chess.square_file(to_sq), chess.square_rank(to_sq)
+
+            # Interpolate visual position
+            current_col = from_col + (to_col - from_col) * t
+            current_row = from_row + (to_row - from_row) * t
+            
+            pos = self.get_perspective_pos(current_col, current_row)
+            scale = self.get_perspective_scale(current_row)
+            self.draw_piece(piece, pos, scale, current_row)
+            
+            if t >= 1.0:
+                self.moving_piece = None
+
+    def draw_piece(self, piece, pos, scale, row):
+        sprite = self.piece_sprites[(piece.color, piece.piece_type)]
+        
+        # Scale sprite based on perspective and global scale factor
+        orig_size = sprite.get_size()
+        final_scale = scale * self.piece_set["scale"]
+        new_size = (int(orig_size[0] * final_scale), int(orig_size[1] * final_scale))
+        scaled_sprite = pygame.transform.smoothscale(sprite, new_size)
+        
+        # Adjust position so the base of the piece sits on the square
+        # row can be a float during animation, which is fine
+        rect = scaled_sprite.get_rect(midbottom=(pos[0], pos[1] + 40 * final_scale))
+        
+        # Draw piece
+        self.screen.blit(scaled_sprite, rect)
 
     def draw_bottom_bar(self):
         # Background
@@ -406,9 +472,13 @@ class ChessGame:
         self.screen.blit(title, ((WIDTH - title.get_width()) // 2, 25))
 
     def make_ai_move(self):
-        if self.engine and self.board.turn == self.ai_color and not self.board.is_game_over():
+        if self.engine and self.board.turn == self.ai_color and not self.board.is_game_over() and not self.moving_piece:
             result = self.engine.play(self.board, chess.engine.Limit(time=0.15))
-            self.board.push(result.move)
+            move = result.move
+            piece = self.board.piece_at(move.from_square)
+            self.moving_piece = (piece, move.from_square, move.to_square)
+            self.animation_start = pygame.time.get_ticks() / 1000
+            self.board.push(move)
 
     def get_square_under_mouse(self):
         mouse_x, mouse_y = pygame.mouse.get_pos()
@@ -470,19 +540,26 @@ class ChessGame:
             return
 
         move = chess.Move(self.selected_square, square)
+        final_move = None
 
         if move in self.board.legal_moves:
-            self.board.push(move)
+            final_move = move
         else:
             queen_promotion = chess.Move(self.selected_square, square, promotion=chess.QUEEN)
             if queen_promotion in self.board.legal_moves:
-                self.board.push(queen_promotion)
+                final_move = queen_promotion
             else:
                 piece = self.board.piece_at(square)
                 if piece and piece.color == self.board.turn:
                     self.selected_square = square
                     self.valid_moves = [move for move in self.board.legal_moves if move.from_square == square]
                     return
+
+        if final_move:
+            piece = self.board.piece_at(final_move.from_square)
+            self.moving_piece = (piece, final_move.from_square, final_move.to_square)
+            self.animation_start = pygame.time.get_ticks() / 1000
+            self.board.push(final_move)
 
         self.selected_square = None
         self.valid_moves = []
