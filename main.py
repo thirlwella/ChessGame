@@ -199,6 +199,8 @@ class ChessGame:
 
         try:
             self.engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
+            # Default difficulty: Easy (Skill Level: 0)
+            self.engine.configure({"Skill Level": 0})
         except Exception as exc:
             print(f"Failed to load engine: {exc}")
 
@@ -446,21 +448,38 @@ class ChessGame:
         mid_x = bar.centerx
         right_x = bar.right - 24
 
+        # Status text
         status_text = self.pixel_font.render(self.get_status_text(), True, self.theme["hud_text"])
-
-        # Render timers (mockup style)
-        #timer_white = self.pixel_font.render("0:00:20", True, self.theme["hud_text"])
-        #timer_black = self.pixel_font.render("0:00:03", True, self.theme["hud_text"])
-
-        #self.screen.blit(timer_white, (left_x + 120, bar.top + 20))
+        self.screen.blit(status_text, status_text.get_rect(center=(mid_x, bar.top + 28)))
         
-        self.screen.blit(status_text, status_text.get_rect(center=(mid_x, bar.top + 34)))
-        
-        #self.screen.blit(timer_black, (right_x - 110, bar.top + 20))
-
-        ai_state = "AI ON" if self.engine else "AI OFF"
-        ai_info = self.small_font.render(ai_state, True, self.theme["hud_text"])
-        self.screen.blit(ai_info, ai_info.get_rect(center=(mid_x, bar.top + 75)))
+        # Draw last moves (Stockfish interaction)
+        last_moves = self.board.move_stack[-12:]
+        if last_moves:
+            move_texts = []
+            
+            # We'll use a temp board to generate SAN for the last few moves.
+            temp_board = chess.Board()
+            for m in self.board.move_stack[:-len(last_moves)]:
+                temp_board.push(m)
+            
+            for i, m in enumerate(last_moves):
+                san = temp_board.san(m)
+                temp_board.push(m)
+                move_texts.append(san)
+            
+            # Draw moves in multiple lines
+            line1_moves = move_texts[:6]
+            line2_moves = move_texts[6:]
+            
+            if line1_moves:
+                moves_str1 = " | ".join(line1_moves)
+                moves_info1 = self.small_font.render(moves_str1, True, self.theme["hud_text"])
+                self.screen.blit(moves_info1, moves_info1.get_rect(center=(mid_x, bar.top + 60)))
+            
+            if line2_moves:
+                moves_str2 = " | ".join(line2_moves)
+                moves_info2 = self.small_font.render(moves_str2, True, self.theme["hud_text"])
+                self.screen.blit(moves_info2, moves_info2.get_rect(center=(mid_x, bar.top + 80)))
 
         # Draw engine buttons
         self.theme_btn.button_draw()
