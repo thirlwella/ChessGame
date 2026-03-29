@@ -1,8 +1,11 @@
 # Chess with 3D Perspective
 
-A stylish, interactive Chess game built with Python and Pygame, featuring a pseudo-3D perspective board, multiple themes, and integration with the Stockfish chess engine for AI play.
+Inspired by Amsofts Cyrus II chess, this is a Python front end to the Stockfish chess engine for AI play. written
+using Pygame and python-chess. Screens are rendered with a pseudo-3D perspective. It has a deliberate uncluttered look, to help focus on enjoying
+the game. Designed to be able to easily add your own chess sets and themes.
 
-![Chess Gameplay Placeholder](https://via.placeholder.com/800x600?text=Chess+with+3D+Perspective+Gameplay)
+
+![alt text](./assets/Screenshot1.png)
 
 ## Features
 
@@ -70,4 +73,4 @@ A stylish, interactive Chess game built with Python and Pygame, featuring a pseu
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
-*This project was developed with AI assistance and reviewed by the user.*
+*This project was developed with AI assistance from Junie and Gemini.*
